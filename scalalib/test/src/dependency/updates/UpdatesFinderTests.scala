@@ -57,7 +57,7 @@ object UpdatesFinderTests extends TestSuite {
     "0.9.9-M3",
     "0.9.9",
     "1.0.0-SNAPSHOT",
-    "1.0.0-M2",
+    "1.0.0-M8",
     "1.0.0-M3",
     "1.0.0",
     "1.0.1-SNAPSHOT",
@@ -101,8 +101,8 @@ object UpdatesFinderTests extends TestSuite {
     }
 
     'milestoneArtifacts - {
-      val u = updates("1.0.0-M2", available, allowPreRelease = false)
-      val pu = updates("1.0.0-M2", available, allowPreRelease = true)
+      val u = updates("1.0.0-M8", available, allowPreRelease = false)
+      val pu = updates("1.0.0-M8", available, allowPreRelease = true)
 
       'noOldStableVersions - {
         assert(!u.contains("0.9.9"))
