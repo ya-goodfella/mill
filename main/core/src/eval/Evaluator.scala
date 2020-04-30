@@ -149,7 +149,7 @@ case class Evaluator(
                        reporter: Int => Option[BuildProblemReporter] = (int: Int) => Option.empty[BuildProblemReporter],
                        testReporter: TestReporter = DummyTestReporter,
                        logger: Logger): Evaluator.Results = {
-    logger.info(s"Using experimental parallel evaluator with ${threadCount} threads")
+    logger.info(s"Using experimental parallel evaluator with $threadCount threads")
     os.makeDir.all(outPath)
     val timeLog = new ParallelProfileLogger(outPath, System.currentTimeMillis())
 
@@ -164,12 +164,7 @@ case class Evaluator(
         def reportFailure(t: Throwable) {}
       }
 
-      def label(x: Terminal) = x match {
-        case Left(x) => x.toString
-        case Right(Labelled(x, y)) => x.toString
-      }
-
-      val terminals = sortedGroups.keys.toVector
+      val terminals = sortedGroups.keys().toVector
 
       val promises = terminals
         .map(k => (k, scala.concurrent.Promise[Any]))
@@ -204,15 +199,15 @@ case class Evaluator(
               }
               val endTime = System.currentTimeMillis()
 
-              Evaluator.this.synchronized {
-                timeLog.timeTrace(
-                  task = printTerm(k),
-                  cat = "job",
-                  startTime = startTime,
-                  endTime = endTime,
-                  thread = Thread.currentThread().getName(),
-                  cached = res.cached
-                )
+              timeLog.timeTrace(
+                task = printTerm(k),
+                cat = "job",
+                startTime = startTime,
+                endTime = endTime,
+                thread = Thread.currentThread().getName(),
+                cached = res.cached
+              )
+              synchronized {
                 for ((k, v) <- res.newResults) results(k) = v
               }
               promises(k).success(123)
@@ -302,7 +297,7 @@ case class Evaluator(
         workerCached.map((_, inputsHash)) orElse cached match{
           case Some((v, hashCode)) =>
             val newResults = mutable.LinkedHashMap.empty[Task[_], Result[(Any, Int)]]
-            synchronized{ newResults(labelledNamedTask.task) = Result.Success((v, hashCode)) }
+            newResults(labelledNamedTask.task) = Result.Success((v, hashCode))
 
             Evaluated(newResults, Nil, true)
 
@@ -481,13 +476,12 @@ case class Evaluator(
           }
         }
 
-      synchronized {
-        newResults(task) = for (v <- res) yield {
-          (v,
-            if (task.isInstanceOf[Worker[_]]) inputsHash
-            else v.##
-          )
-        }
+
+      newResults(task) = for (v <- res) yield {
+        (v,
+          if (task.isInstanceOf[Worker[_]]) inputsHash
+          else v.##
+        )
       }
     }
 
@@ -527,8 +521,8 @@ case class Evaluator(
   private def findInterGroupDeps(sortedGroups: MultiBiMap[Terminal, Task[_]]): Map[TerminalGroup, Seq[TerminalGroup]] = {
     def termGroup(t: Terminal): TerminalGroup = t -> sortedGroups.lookupKey(t)
     sortedGroups.items().map {
-      case g @ (terminal, group) =>
-        g -> group.toSeq
+      case (terminal, group) =>
+        (terminal, group) -> group.toSeq
           .flatMap(_.inputs)
           .filterNot(d => group.contains(d))
           .distinct
