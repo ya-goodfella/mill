@@ -7,7 +7,6 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 
 import ammonite.runtime.SpecialClassLoader
-import eval.ParallelProfileLogger
 import mill.api.Result.{Aborted, OuterStack, Success}
 import mill.api.Strict.Agg
 import mill.api.{BuildProblemReporter, DummyTestReporter, Strict, TestReporter}
@@ -658,24 +657,6 @@ object Evaluator{
       counter += 1
       counter + "/" + taskCount
     }
-  }
-
-  /**
-    * Trace Event Format, that can be loaded with Google Chrome via chrome://tracing
-    * See https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/
-    */
-  case class TraceEvent(
-    name: String,
-    cat: String,
-    ph: String,
-    ts: Long,
-    dur: Long,
-    pid: Int,
-    tid: Int,
-    args: Seq[String]
-  )
-  object TraceEvent {
-    implicit val readWrite: upickle.default.ReadWriter[TraceEvent] = upickle.default.macroRW
   }
 
   def writeTracings(tracings: Seq[TraceEvent], outPath: os.Path): Unit = {
