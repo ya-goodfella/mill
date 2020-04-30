@@ -179,36 +179,52 @@ case class Evaluator(
       val taskFutures: Map[Terminal, Future[Any]] = promises.map { case (k, p) => (k, p.future) }
 
       val results = mutable.LinkedHashMap.empty[Task[_], Result[(Any, Int)]]
-
+      val failed = new AtomicBoolean(false)
+      val totalCount = terminals.size
+      val count = new AtomicInteger(0)
       val futures = terminals.map { k =>
         val deps = interGroupDeps((k, sortedGroups.lookupKey(k))).map(_._1)
 
         Future.sequence(deps.map(taskFutures(_)))
           .map { upstreamValues =>
-            val startTime = System.currentTimeMillis()
+            if (failed.get()) None
+            else {
+              val startTime = System.currentTimeMillis()
 
-            val res = evaluateGroupCached(k, sortedGroups.lookupKey(k), results, "lol", reporter, testReporter, logger)
-            val endTime = System.currentTimeMillis()
-            Evaluator.this.synchronized {
-
-              timeLog.timeTrace(
-                task = label(k) + " " + System.identityHashCode(k),
-                cat = "job",
-                startTime = startTime,
-                endTime = endTime,
-                thread = Thread.currentThread().getName(),
-                cached = res.cached
+              val res = evaluateGroupCached(
+                k,
+                sortedGroups.lookupKey(k),
+                results,
+                s"${count.getAndIncrement()}/$totalCount",
+                reporter,
+                testReporter,
+                logger
               )
-              for ((k, v) <- res.newResults) results(k) = v
+              val endTime = System.currentTimeMillis()
+              Evaluator.this.synchronized {
+
+                timeLog.timeTrace(
+                  task = label(k) + " " + System.identityHashCode(k),
+                  cat = "job",
+                  startTime = startTime,
+                  endTime = endTime,
+                  thread = Thread.currentThread().getName(),
+                  cached = res.cached
+                )
+                for ((k, v) <- res.newResults) results(k) = v
+              }
+              promises(k).success(123)
+              Some(res)
             }
-            promises(k).success(123)
-            res
           }
       }
 
-      val finished = futures.map(Await.result(_, duration.Duration.Inf))
+      val finished = futures.flatMap(Await.result(_, duration.Duration.Inf))
 
       timeLog.close()
+      for(group <- sortedGroups.values(); task <- group){
+        if (!results.contains(task)) results(task) = Aborted
+      }
       Evaluator.Results(
         goals.indexed.map(results(_).map(_._1)),
         finished.flatMap(_.newEvaluated),
