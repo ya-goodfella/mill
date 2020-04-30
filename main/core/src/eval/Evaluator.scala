@@ -127,7 +127,6 @@ case class Evaluator(
       evaluated,
       transitive,
       getFailing(sortedGroups, results),
-      timings.toIndexedSeq,
       results.map{case (k, v) => (k, v.map(_._1))}
     )
   }
@@ -198,13 +197,16 @@ case class Evaluator(
                 s"${count.getAndIncrement()}/$totalCount",
                 reporter,
                 testReporter,
-                logger
-              )
-              val endTime = System.currentTimeMillis()
-              Evaluator.this.synchronized {
+                logger)
 
+              if (failFast && res.newResults.values.exists(_.asSuccess.isEmpty)) {
+                failed.set(true)
+              }
+              val endTime = System.currentTimeMillis()
+
+              Evaluator.this.synchronized {
                 timeLog.timeTrace(
-                  task = label(k) + " " + System.identityHashCode(k),
+                  task = printTerm(k),
                   cat = "job",
                   startTime = startTime,
                   endTime = endTime,
@@ -230,7 +232,6 @@ case class Evaluator(
         finished.flatMap(_.newEvaluated),
         transitive,
         getFailing(sortedGroups, results),
-        Vector(),
         results.toSeq.toMap.map { case (k, v) => (k, v.map(_._1)) }
       )
     }finally threadPool.shutdown()
@@ -546,7 +547,6 @@ case class Evaluator(
       }
       msgParts.mkString
   }
-
 }
 
 
@@ -559,7 +559,7 @@ object Evaluator{
   }
   case class State(rootModule: mill.define.BaseModule,
                    classLoaderSig: Seq[(Either[String, java.net.URL], Long)],
-                   workerCache: mutable.Map[Segments, (Int, Any)],
+                   workerCache: collection.mutable.Map[Segments, (Int, Any)],
                    watched: Seq[(ammonite.interp.Watchable, Long)])
   // This needs to be a ThreadLocal because we need to pass it into the body of
   // the TargetScopt#read call, which does not accept additional parameters.
@@ -615,7 +615,6 @@ object Evaluator{
                      evaluated: Agg[Task[_]],
                      transitive: Agg[Task[_]],
                      failing: MultiBiMap[Either[Task[_], Labelled[_]], Result.Failing[_]],
-                     timings: IndexedSeq[(Either[Task[_], Labelled[_]], Int, Boolean)],
                      results: collection.Map[Task[_], Result[Any]]){
     def values = rawValues.collect{case Result.Success(v) => v}
   }
@@ -674,6 +673,7 @@ object Evaluator{
       counter + "/" + taskCount
     }
   }
+
 
   def writeTracings(tracings: Seq[TraceEvent], outPath: os.Path): Unit = {
     os.write.over(
