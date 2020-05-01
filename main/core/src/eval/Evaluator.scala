@@ -186,7 +186,7 @@ case class Evaluator(
 
             val startTime = System.currentTimeMillis()
             val threadId = timeLog.getThreadId(Thread.currentThread().getName())
-            val fraction = s"#$threadId ${count.getAndIncrement()}/$totalCount"
+            val fraction = s"${count.getAndIncrement()}/$totalCount"
             val contextLogger = new PrefixLogger(logger, context = s"[#$threadId] ")
 
             val res = evaluateGroupCached(
