@@ -59,15 +59,18 @@ object PrintState {
   case object Newline extends PrintState
   case object Middle extends PrintState
 }
-
-case class PrefixLogger(out: Logger, context: String) extends Logger{
+trait ColorLogger extends Logger{
+  def colors: ammonite.util.Colors
+}
+case class PrefixLogger(out: ColorLogger, context: String) extends ColorLogger{
   override def colored = out.colored
 
+  def colors = out.colors
   override val errorStream = new PrintStream(new LinePrefixOutputStream(
-    context, out.errorStream
+    colors.info()(context).render, out.errorStream
   ))
   override val outputStream = new PrintStream(new LinePrefixOutputStream(
-    context, out.outputStream
+    colors.info()(context).render, out.outputStream
   ))
 
   override def inStream = out.inStream
@@ -90,7 +93,7 @@ case class PrintLogger(
   inStream: InputStream,
   debugEnabled: Boolean,
   context: String
-) extends Logger {
+) extends ColorLogger {
 
   var printState: PrintState = PrintState.Newline
 
