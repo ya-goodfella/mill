@@ -169,18 +169,18 @@ object main extends MillModule {
 
     def generatedSources = T {
       val dest = T.ctx.dest
-      val version = publishVersion()
-      writeBuildInfo(dest, version)
+      writeBuildInfo(dest, scalaVersion(), publishVersion())
       shared.generateCoreSources(dest)
       Seq(PathRef(dest))
     }
 
-    def writeBuildInfo(dir : os.Path, version : String) = {
+    def writeBuildInfo(dir : os.Path, scalaVersion: String, millVersion: String) = {
       val code = s"""
         |package mill
         |
         |object BuildInfo {
-        |  val millVersion = "$version"
+        |  val scalaVersion = "$scalaVersion"
+        |  val millVersion = "$millVersion"
         |}
       """.stripMargin.trim
 
@@ -845,6 +845,12 @@ def uploadToGithub(authKey: String) = T.command{
       .asString
   }
 
+  for(example <- Seq("example-1", "example-2", "example-3")) {
+    os.copy(os.pwd / "example" / example, T.dest / example)
+    os.copy(launcher().path, T.dest / example / "mill")
+    os.proc('zip, "-r", T.dest / s"$example.zip", example).call(cwd = T.dest)
+    upload.apply(T.dest / s"$example.zip", releaseTag, label + "-" + example + ".zip", authKey)
+  }
   upload.apply(assembly().path, releaseTag, label + "-assembly", authKey)
 
   upload.apply(launcher().path, releaseTag, label, authKey)
